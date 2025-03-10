@@ -8,6 +8,7 @@ set -u
 NUMFILES=10
 WRITESTR=AELD_IS_FUN
 WRITEDIR=/tmp/aeld-data
+#WRITEDIR=/home/iago/Documentos/Coursera/Linux-System-Programming-Introduction-to-Buildroot/assignment-1-IagoErrera/aeld-data
 username=$(cat conf/username.txt)
 
 if [ $# -lt 3 ]
@@ -23,6 +24,7 @@ else
 	NUMFILES=$1
 	WRITESTR=$2
 	WRITEDIR=/tmp/aeld-data/$3
+	#WRITEDIR=/home/iago/Documentos/Coursera/Linux-System-Programming-Introduction-to-Buildroot/assignment-1-IagoErrera/aeld-data
 fi
 
 MATCHSTR="The number of files are ${NUMFILES} and the number of matching lines are ${NUMFILES}"
