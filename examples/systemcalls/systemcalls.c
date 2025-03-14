@@ -17,7 +17,7 @@ bool do_system(const char *cmd)
  *   or false() if it returned a failure
 */
 
-    return true;
+	return system(cmd) != -1 ? true : false;
 }
 
 /**
@@ -58,10 +58,30 @@ bool do_exec(int count, ...)
  *   as second argument to the execv() command.
  *
 */
+	va_end(args);
 
-    va_end(args);
+	pid_t pid = fork();
 
-    return true;
+	if (pid == -1) {
+		perror("Error on fork!");
+		exit(1);
+	}
+
+	if (pid == 0) {	
+		int status = execv(command[0], &command[1]);
+
+		if (status == -1) {
+			//perror("Fail on execute command");
+			exit(1);
+		}
+	}
+
+	int status;
+	wait(&status);
+	
+	if (WIFEXITED(status) && WEXITSTATUS(status) == 0) return true; 
+
+    return false;
 }
 
 /**
@@ -92,8 +112,45 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   The rest of the behaviour is same as do_exec()
  *
 */
-
     va_end(args);
 
-    return true;
+	int fd = open(outputfile, O_WRONLY | O_TRUNC | O_CREAT, 0644);
+	if (fd < 0) {
+		perror("Error on open file to redirect!");
+		exit(1);
+	}
+	
+	pid_t pid = fork();
+	
+	if (pid == -1) {
+		perror("Error on fork!");
+		close(fd);
+		exit(1);
+	}
+
+	if (pid == 0) {
+		if (dup2(fd, 1) < 0) {
+			perror("Error on dup2!");
+			close(fd);
+			exit(1);
+		}
+
+		close(fd);
+
+		int status = execv(command[0], &command[1]);
+	
+		if (status == -1) {
+			//perror("Fail on execute command");
+			exit(1);
+		}	
+	}
+
+	close(fd);	
+
+	int status;
+	wait(&status);
+
+    if (WIFEXITED(status) && WEXITSTATUS(status) == 0) return true; 
+
+    return false;
 }
