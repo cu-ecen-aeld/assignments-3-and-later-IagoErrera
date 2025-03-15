@@ -16,8 +16,7 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
 */
-
-	return system(cmd) != -1 ? true : false;
+	return system(cmd) == 0 ? true : false;
 }
 
 /**
@@ -62,25 +61,30 @@ bool do_exec(int count, ...)
 
 	pid_t pid = fork();
 
-	if (pid == -1) {
+if (pid == -1) {
 		perror("Error on fork!");
-		exit(1);
+		return false;
 	}
 
 	if (pid == 0) {	
-		int status = execv(command[0], &command[1]);
+		int err = execv(command[0], command);
 
-		if (status == -1) {
-			//perror("Fail on execute command");
+		if (err == -1) {
+			perror("Fail on exec command");
 			exit(1);
 		}
 	}
 
 	int status;
-	wait(&status);
+	waitpid(pid, &status, 0);
 	
-	if (WIFEXITED(status) && WEXITSTATUS(status) == 0) return true; 
+	printf("S: %d\n\r", status);
+	printf("1: %d\n\r", WIFEXITED(status)); 	
+	printf("2: %d\n\r", WEXITSTATUS(status)); 	
 
+	if (WIFEXITED(status)) 
+		if (WEXITSTATUS(status) == 0) return true; 
+		
     return false;
 }
 
@@ -125,7 +129,7 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
 	if (pid == -1) {
 		perror("Error on fork!");
 		close(fd);
-		exit(1);
+		return false;
 	}
 
 	if (pid == 0) {
@@ -137,10 +141,10 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
 
 		close(fd);
 
-		int status = execv(command[0], &command[1]);
+		int status = execv(command[0], command);
 	
 		if (status == -1) {
-			//perror("Fail on execute command");
+			perror("Fail on execute command");
 			exit(1);
 		}	
 	}
