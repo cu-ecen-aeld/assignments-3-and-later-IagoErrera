@@ -10,15 +10,40 @@
 
 void* threadfunc(void* thread_param)
 {
-
     // TODO: wait, obtain mutex, wait, release mutex as described by thread_data structure
     // hint: use a cast like the one below to obtain thread arguments from your parameter
     //struct thread_data* thread_func_args = (struct thread_data *) thread_param;
-    return thread_param;
+	struct thread_data * td = (struct thread_data *)thread_param;
+
+	if (usleep(1000 * td->wait_to_obtain_ms) == -1) {
+		ERROR_LOG("Error on wait to obtain");
+		td->thread_complete_success = false;
+		return thread_param;
+	}
+	if (pthread_mutex_lock(td->mutex) != 0) {
+		ERROR_LOG("Error on lock");
+		td->thread_complete_success = false;	
+		return thread_param;
+	}
+
+	if (usleep(1000 * td->wait_to_release_ms) == -1) {
+		ERROR_LOG("Error on wait to release");
+		td->thread_complete_success = false;	
+		return thread_param;
+	}
+	if (pthread_mutex_unlock(td->mutex) != 0) {
+		ERROR_LOG("Error on unlock");
+		td->thread_complete_success = false;	
+		return thread_param;
+	}
+	
+	td->thread_complete_success = true;
+
+	return thread_param;
 }
 
 
-bool start_thread_obtaining_mutex(pthread_t *thread, pthread_mutex_t *mutex,int wait_to_obtain_ms, int wait_to_release_ms)
+bool start_thread_obtaining_mutex(pthread_t *thread, pthread_mutex_t *mutex, int wait_to_obtain_ms, int wait_to_release_ms)
 {
     /**
      * TODO: allocate memory for thread_data, setup mutex and wait arguments, pass thread_data to created thread
@@ -28,6 +53,28 @@ bool start_thread_obtaining_mutex(pthread_t *thread, pthread_mutex_t *mutex,int 
      *
      * See implementation details in threading.h file comment block
      */
-    return false;
+
+	struct thread_data * td = malloc(sizeof(struct thread_data)); 
+	td->mutex = mutex;	
+	td->wait_to_obtain_ms = wait_to_obtain_ms;
+	td->wait_to_release_ms = wait_to_release_ms;
+	td->thread_complete_success = false;
+
+	int err = pthread_create(
+		thread,
+		NULL,
+		&threadfunc,
+		(void *)td
+	);
+
+	if (err != 0) return false;
+
+	pthread_join((*thread), (void*)(td));
+	
+	bool status = td->thread_complete_success;
+
+	free(td);
+	
+	return status;
 }
 
