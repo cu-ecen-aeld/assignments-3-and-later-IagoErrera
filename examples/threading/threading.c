@@ -15,22 +15,25 @@ void* threadfunc(void* thread_param)
     //struct thread_data* thread_func_args = (struct thread_data *) thread_param;
 	struct thread_data * td = (struct thread_data *)thread_param;
 
+	DEBUG_LOG("WAIT OBTAIN: %d", td->wait_to_obtain_ms);
 	if (usleep(1000 * td->wait_to_obtain_ms) == -1) {
 		ERROR_LOG("Error on wait to obtain");
 		td->thread_complete_success = false;
 		return thread_param;
 	}
+	DEBUG_LOG("Mutex Lock");
 	if (pthread_mutex_lock(td->mutex) != 0) {
 		ERROR_LOG("Error on lock");
 		td->thread_complete_success = false;	
 		return thread_param;
 	}
-
+	DEBUG_LOG("WAIT RELEASE: %d", td->wait_to_release_ms);
 	if (usleep(1000 * td->wait_to_release_ms) == -1) {
 		ERROR_LOG("Error on wait to release");
 		td->thread_complete_success = false;	
 		return thread_param;
 	}
+	DEBUG_LOG("Mutex Unlock");
 	if (pthread_mutex_unlock(td->mutex) != 0) {
 		ERROR_LOG("Error on unlock");
 		td->thread_complete_success = false;	
@@ -58,7 +61,7 @@ bool start_thread_obtaining_mutex(pthread_t *thread, pthread_mutex_t *mutex, int
 	td->mutex = mutex;	
 	td->wait_to_obtain_ms = wait_to_obtain_ms;
 	td->wait_to_release_ms = wait_to_release_ms;
-	td->thread_complete_success = false;
+	td->thread_complete_success = false;	
 
 	int err = pthread_create(
 		thread,
@@ -67,14 +70,11 @@ bool start_thread_obtaining_mutex(pthread_t *thread, pthread_mutex_t *mutex, int
 		(void *)td
 	);
 
-	if (err != 0) return false;
+	if (err != 0) {
+		free(td);
+		return false;
+	}
 
-	pthread_join((*thread), (void*)(td));
-	
-	bool status = td->thread_complete_success;
-
-	free(td);
-	
-	return status;
+	return true;
 }
 
