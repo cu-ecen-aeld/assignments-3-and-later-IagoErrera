@@ -11,7 +11,7 @@ WRITEDIR=/tmp/aeld-data
 OUTPUT=/tmp/assignment4-result.txt
 username=$(cat /etc/finder-app/conf/username.txt)
 
-echo "" > ${OUTPUT} 
+rm -f ${OUTPUT} 
 
 if [ $# -lt 3 ]
 then
