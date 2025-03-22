@@ -9,6 +9,7 @@ FILES = writer
 
 .PHONY: all
 all: $(TARGET) 
+	echo "Compiler: ${CC}"	
 
 $(TARGET): $(BUILD_DIR)/$(FILES).o
 	$(CC) $^ -o $@ 
