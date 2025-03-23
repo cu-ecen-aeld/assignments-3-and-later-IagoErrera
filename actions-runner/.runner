@@ -1,9 +1,0 @@
-﻿{
-  "agentId": 2,
-  "agentName": "iago",
-  "poolId": 1,
-  "poolName": "Default",
-  "serverUrl": "https://pipelinesghubeus5.actions.githubusercontent.com/HdRRvCWBnmO1CEhwSJOMExH76qW65YQvT5JPy8t4QY4h7ZJgNf/",
-  "gitHubUrl": "https://github.com/cu-ecen-aeld/assignments-3-and-later-IagoErrera",
-  "workFolder": "_work"
-}
