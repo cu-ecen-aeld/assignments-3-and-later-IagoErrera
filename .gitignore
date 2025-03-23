@@ -8,4 +8,7 @@ aesd-build
 test.sh.log
 actions-runner/
 actions-runner/**
+aesdsocket
+server/aesdsocket
+server/valgrind-out.txt
 
