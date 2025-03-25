@@ -12,6 +12,10 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <poll.h>
+#include <pthread.h>
+#include <time.h>
+
+#include "queue.h"
 
 #define PORT "9000"
 #define CONNECTION_QUEUE_SIZE 10
@@ -19,22 +23,123 @@
 
 #define WRITE_FILE "/var/tmp/aesdsocketdata"
 
-int sockfd = -1, connection_fd = -1, file_fd = -1;
+int sockfd = -1, file_fd = -1;
 struct addrinfo hints, *res = NULL;
 int should_free_res = 0;
 
+// Connection List
+typedef struct slist_data_s slist_data_t;
+struct slist_data_s {
+    pthread_t value;
+    SLIST_ENTRY(slist_data_s) entries;
+};
+
+slist_data_t *datap = NULL;
+SLIST_HEAD(slisthead, slist_data_s) head;
+
+// File Mutex
+pthread_mutex_t lock;
+
+// Timer
+timer_t timer;
+
+// Signal Handler
 static void signal_handler(int signal_number) {
+	if (signal_number != SIGINT && signal_number != SIGTERM) return;
+	
+	timer_running = 0;
+
+	while(!SLIST_EMPTY(&head)) {	
+		datap = SLIST_FIRST(&head);
+		if (datap != NULL) pthread_join(datap->value, NULL);
+		SLIST_REMOVE_HEAD(&head, entries);
+		if (datap != NULL) free(datap);
+	}
+
 	if (sockfd != -1) close(sockfd);
-	if (connection_fd != -1) close(connection_fd);
 	if (file_fd != -1) close(file_fd);
 	if (should_free_res == 1) freeaddrinfo(res);
 	
-	remove(WRITE_FILE);
+	pthread_mutex_destroy(&lock);
 
+	remove(WRITE_FILE);
+	
+	struct itimerspec disarm = {0};
+    timer_settime(timer, 0, &disarm, NULL);
+			
+	timer_delete(timer);
+	
 	syslog(LOG_INFO, "Caught sinal, exiting");
 	closelog();
-
+	
 	exit(0);
+}
+
+// Connection Handler
+void* handle_connection(void* arg) {
+	int connection_fd = *(int*)arg;
+
+	char buf[BUFFER_SIZE];
+	int n, total = 0;
+	while ((n = recv(connection_fd, buf, BUFFER_SIZE, 0)) != 0) {
+		total += n;
+		pthread_mutex_lock(&lock);
+		write(file_fd, &buf, n);
+		pthread_mutex_unlock(&lock);
+		if (buf[n-1] == '\n') break;
+	}
+
+	pthread_mutex_lock(&lock);
+	lseek(file_fd, 0, SEEK_SET);	
+	while ((n = read(file_fd, buf, BUFFER_SIZE)) != 0) {
+		send(connection_fd, &buf, n, 0);
+	}
+	pthread_mutex_unlock(&lock);	
+	
+	free(arg);
+	close(connection_fd);
+
+	return NULL;
+}
+
+// Insert timestamp on file
+void handle_time() {
+	printf("Time\n\r");
+	fflush(stdout);	
+
+	time_t now;
+	struct tm *tmp;
+	char outstr[200];
+	int n;
+
+	strcpy(outstr, "timestamp:");
+
+	now = time(NULL);
+	tmp = localtime(&now);
+	if (tmp == NULL) {
+    	syslog(LOG_ERR, "localtime");
+        return;
+	}
+
+	if ((n = strftime(&outstr[10], sizeof(outstr), "%a, %d %b %Y %T %z", tmp)) == 0) {
+        syslog(LOG_ERR, "strftime");
+		return;
+	}
+
+	outstr[n+10] = '\n';
+
+	pthread_mutex_lock(&lock);
+	write(file_fd, &outstr, n+11);
+	pthread_mutex_unlock(&lock);
+}
+
+void* timer_thread() {
+	while (timer_running) {
+		handle_time();
+		sleep(3);
+	}
+
+	return NULL;
 }
 
 int main(int argc, char** argv) {
@@ -147,6 +252,7 @@ int main(int argc, char** argv) {
 		dup2(null_fd, STDERR_FILENO);
 	}
 	
+	// Open File
 	if ((file_fd = open(WRITE_FILE, O_RDWR | O_CREAT | O_APPEND | O_SYNC, S_IRWXU | S_IRGRP | S_IROTH)) == -1) {
 		perror("Error on open file to write!");
 		syslog(LOG_ERR, "Error on open file to write!");
@@ -156,17 +262,49 @@ int main(int argc, char** argv) {
 		exit(1);
 	} 
 
+	// Setting timer			
+	struct sigevent sevp = {
+        .sigev_notify = SIGEV_THREAD,
+        .sigev_notify_function = handle_time,
+        .sigev_notify_attributes = NULL
+    };
+
+	if (timer_create(CLOCK_MONOTONIC, &sevp, &timer) == -1) {
+		perror("Error create timer");
+		syslog(LOG_ERR, "Error on create timer");
+		close(sockfd);
+		close(file_fd);
+		closelog();
+		freeaddrinfo(res);
+		exit(1);
+	} 
+		
+	struct itimerspec its = {
+        .it_value = {.tv_sec = 10, .tv_nsec = 0},
+        .it_interval = {.tv_sec = 10, .tv_nsec = 0}
+    };
+	
+	if (timer_settime(timer, 0, &its, NULL) == -1) { 
+		perror("Error set timer time");
+		syslog(LOG_ERR, "Error on set timer time");
+		close(sockfd);
+		close(file_fd);
+		closelog();
+		freeaddrinfo(res);
+		exit(1);
+	}
+
 	struct sockaddr_storage connection_addr;
 	socklen_t connection_addr_size = sizeof(connection_addr);
-	
+	int connection_fd;
+	SLIST_INIT(&head);
+	pthread_mutex_init(&lock, NULL);	
+
 	while (1) {
 		if ((connection_fd = accept(sockfd, (struct sockaddr *)&connection_addr, &connection_addr_size)) == -1) {
 			perror("Error on accept connection!");
 			syslog(LOG_ERR, "Error on accept connection!");
-			close(sockfd);
-			close(file_fd);
 			closelog();
-			freeaddrinfo(res);
 			exit(1);
 		} 
 		
@@ -178,22 +316,18 @@ int main(int argc, char** argv) {
 		);	
 
 		syslog(LOG_INFO, "Accepted connection from %s", s);
-		
-		char buf[BUFFER_SIZE];
-		int n, total = 0;
-		while ((n = recv(connection_fd, &buf, BUFFER_SIZE, 0)) != 0) {
-			total += n;
-			write(file_fd, &buf, n);
-			if (buf[n-1] == '\n') break;
-		}
 
-		lseek(file_fd, 0, SEEK_SET);	
-		while ((n = read(file_fd, &buf, BUFFER_SIZE)) != 0) {
-			send(connection_fd, &buf, n, 0);
+		datap = (slist_data_t*)malloc(sizeof(slist_data_t));
+		int* connection_fd_p = (int*)malloc(sizeof(int));
+		*connection_fd_p = connection_fd;  
+		if (pthread_create(&datap->value, NULL, &handle_connection, (void*)connection_fd_p) != 0) {	
+			free(datap);
+			free(connection_fd_p);
+			close(connection_fd);	
+			syslog(LOG_ERR, "Fail on create socket");
+			continue;
 		}
-			
-		close(connection_fd);
-		syslog(LOG_INFO, "Closed connection from %s", s);
+		SLIST_INSERT_HEAD(&head, datap, entries);
 	}
 
 	return 0;

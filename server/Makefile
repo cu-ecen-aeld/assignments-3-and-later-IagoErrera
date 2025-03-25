@@ -1,5 +1,5 @@
 CC=${CROSS_COMPILE}gcc
-CFLAGS=
+CFLAGS=-I./includes -Wall
 
 TARGET=aesdsocket
 BUILD_DIR=build
@@ -26,3 +26,4 @@ client: src/client.c
 clean: 
 	rm -rf ${BUILD_DIR}
 	rm -f ${TARGET}
+	rm -f client
