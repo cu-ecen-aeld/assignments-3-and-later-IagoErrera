@@ -47,8 +47,6 @@ timer_t timer;
 static void signal_handler(int signal_number) {
 	if (signal_number != SIGINT && signal_number != SIGTERM) return;
 	
-	timer_running = 0;
-
 	while(!SLIST_EMPTY(&head)) {	
 		datap = SLIST_FIRST(&head);
 		if (datap != NULL) pthread_join(datap->value, NULL);
@@ -131,15 +129,6 @@ void handle_time() {
 	pthread_mutex_lock(&lock);
 	write(file_fd, &outstr, n+11);
 	pthread_mutex_unlock(&lock);
-}
-
-void* timer_thread() {
-	while (timer_running) {
-		handle_time();
-		sleep(3);
-	}
-
-	return NULL;
 }
 
 int main(int argc, char** argv) {
