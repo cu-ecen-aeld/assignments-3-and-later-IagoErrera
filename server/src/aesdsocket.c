@@ -102,9 +102,6 @@ void* handle_connection(void* arg) {
 
 // Insert timestamp on file
 void handle_time() {
-	printf("Time\n\r");
-	fflush(stdout);	
-
 	time_t now;
 	struct tm *tmp;
 	char outstr[200];
