@@ -1,11 +1,11 @@
-CC=${CROSS_COMPILE}gcc
-CFLAGS=-I./includes -Wall
+CC ?= ${CROSS_COMPILE}gcc
+CFLAGS ?= -I./includes -Wall
 
-TARGET=aesdsocket
-BUILD_DIR=build
-SRC_DIR=src
-SRC=aesdsocket.c
-OBJ=aesdsocket.o
+TARGET ?= aesdsocket
+BUILD_DIR = build
+SRC_DIR = src
+SRC = aesdsocket.c
+OBJ = aesdsocket.o
 
 .PHONY: all
 all: ${TARGET}
@@ -14,7 +14,7 @@ all: ${TARGET}
 default: ${TARGET}
 
 ${TARGET}: ${BUILD_DIR}/${OBJ}
-	${CC} ${CFLAGS} $^ -o $@ 
+	${CC} ${LDFLAGS} $^ -o $@ 
 
 ${BUILD_DIR}/${OBJ}: ${SRC_DIR}/${SRC}
 	mkdir -p build
