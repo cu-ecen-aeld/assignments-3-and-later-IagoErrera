@@ -1,5 +1,6 @@
 CC ?= ${CROSS_COMPILE}gcc
-CFLAGS ?= -I./includes -Wall
+CFLAGS ?= -Wall
+CFLAGS += -I./includes  
 
 TARGET ?= aesdsocket
 BUILD_DIR = build
